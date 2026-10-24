@@ -1,0 +1,62 @@
+# ==============================================================================
+# DukaanOS Production Multi-Container Orchestration
+# Run: docker compose -f docker-compose.prod.yml up -d --build
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # 1. Persistent MySQL 8.0 Database (Private Network Only)
+  db:
+    image: mysql:8.0
+    container_name: dukaanos_mysql_prod
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-ChangeMeRootSecretPassword}
+      MYSQL_DATABASE: dukaanos_db
+      MYSQL_USER: dukaanos_user
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ChangeMeSecureUserPassword}
+    volumes:
+      - dukaanos_mysql_data:/var/lib/mysql
+    # SECURITY HARDENING:
+    # Do NOT bind port 3306 to 0.0.0.0 host!
+    # Database is strictly accessible only over internal private Docker network:
+    expose:
+      - "3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=200
+    networks:
+      - dukaanos_internal_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI ASGI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: dukaanos_backend_prod
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - backend/.env
+    ports:
+      - "127.0.0.1:8000:8000" # Bound strictly to localhost for Nginx reverse proxy
+    networks:
+      - dukaanos_internal_net
+
+networks:
+  dukaanos_internal_net:
+    driver: bridge
+
+volumes:
+  dukaanos_mysql_data:
+    driver: local
