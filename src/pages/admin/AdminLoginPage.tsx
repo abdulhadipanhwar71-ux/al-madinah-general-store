@@ -19,10 +19,8 @@ export const AdminLoginPage: React.FC = () => {
   const { storeProfile } = useStore();
   const navigate = useNavigate();
 
-  const isDemoMode = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_LOGIN !== 'false';
-
-  const [email, setEmail] = useState(isDemoMode ? 'admin@dukaanos.pk' : '');
-  const [password, setPassword] = useState(isDemoMode ? 'admin123' : '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -52,11 +50,6 @@ export const AdminLoginPage: React.FC = () => {
     }
   };
 
-  const handleSelectDemo = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-  };
-
   return (
     <div className="min-h-screen bg-stone-100 dark:bg-[#070E18] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
@@ -78,10 +71,10 @@ export const AdminLoginPage: React.FC = () => {
             <Store className="w-7 h-7" />
           </div>
           <h2 className="mt-4 text-2xl font-extrabold text-stone-900 dark:text-white tracking-tight">
-            Dukaan<span className="text-emerald-700 dark:text-emerald-400">OS</span> Admin Portal
+            {storeProfile.name}
           </h2>
           <p className="mt-1 text-xs text-stone-500 dark:text-slate-400">
-            Private management console for {storeProfile.name}
+            Private Admin Management Portal
           </p>
         </div>
 
@@ -97,17 +90,18 @@ export const AdminLoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-stone-700 dark:text-slate-300 mb-1">
-                Admin Email Address
+                Admin Username or Email
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <UserCheck className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl dark:text-slate-100 focus:ring-2 focus:ring-emerald-600/30"
-                  placeholder="admin@dukaanos.pk"
+                  placeholder="127294 or email"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -125,6 +119,7 @@ export const AdminLoginPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-stone-50 dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl dark:text-slate-100 focus:ring-2 focus:ring-emerald-600/30"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                 />
               </div>
             </div>
@@ -144,42 +139,6 @@ export const AdminLoginPage: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Credentials Selector (Development Mode Only) */}
-          {isDemoMode && (
-            <div className="pt-4 border-t border-stone-100 dark:border-slate-800 text-xs">
-              <p className="font-bold text-stone-700 dark:text-slate-300 mb-2">
-                Select Demo Staff Role (Dev Mode):
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSelectDemo('admin@dukaanos.pk', 'admin123')}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    email === 'admin@dukaanos.pk'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300'
-                      : 'border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-400 hover:bg-stone-50'
-                  }`}
-                >
-                  <p className="font-bold">Store Owner</p>
-                  <p className="text-[10px] text-stone-400">admin@dukaanos.pk</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectDemo('cashier@dukaanos.pk', 'cashier123')}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    email === 'cashier@dukaanos.pk'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300'
-                      : 'border-stone-200 dark:border-slate-700 text-stone-600 dark:text-slate-400 hover:bg-stone-50'
-                  }`}
-                >
-                  <p className="font-bold">Cashier</p>
-                  <p className="text-[10px] text-stone-400">cashier@dukaanos.pk</p>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Security architecture notice */}
           <div className="pt-2 text-[11px] text-stone-400 flex items-start gap-2">

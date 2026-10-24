@@ -319,7 +319,7 @@ export const HomePage: React.FC = () => {
 
             <div className="pt-4">
               <a
-                href={`https://wa.me/${storeProfile.whatsappNumber.replace(/[^0-9]/g, '')}?text=Assalam-o-Alaikum%2C%20I%20would%20like%20to%20order%20grocery.`}
+                href={buildWhatsAppUrl(storeProfile.whatsappNumber, 'Assalam-o-Alaikum, I would like to order grocery.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-sm shadow-lg transition-transform active:scale-95"
