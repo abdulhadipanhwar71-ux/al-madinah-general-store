@@ -20,7 +20,12 @@ else:
     engine_kwargs["max_overflow"] = 20
     engine_kwargs["pool_recycle"] = 3600
 
-engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
+# Normalize postgres:// to postgresql:// for SQLAlchemy 1.4+ compatibility
+effective_db_url = settings.DATABASE_URL
+if effective_db_url.startswith("postgres://"):
+    effective_db_url = effective_db_url.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(effective_db_url, **engine_kwargs)
 
 # Enable foreign keys for SQLite
 @event.listens_for(Engine, "connect")

@@ -1,3 +1,4 @@
+import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
@@ -36,47 +37,31 @@ async def lifespan(app: FastAPI):
     """
     Base.metadata.create_all(bind=engine)
 
-    # Check and seed initial data
+    # Check and seed initial data if empty
     db = next(get_db())
     try:
-        # In development mode only, check and seed default demo accounts if not present
-        if settings.ENVIRONMENT != "production":
-            owner = db.query(models.User).filter(
-                (models.User.email == "abdulhadipanhwar71@gmail.com") | (models.User.username == "127294")
-            ).first()
-            if not owner:
-                logger.info("Creating default owner user account (abdulhadipanhwar71@gmail.com)...")
-                hashed = auth.get_password_hash("admin123")
-                default_owner = models.User(
-                    name="AbdulHadi",
-                    email="abdulhadipanhwar71@gmail.com",
-                    username="127294",
-                    hashed_password=hashed,
-                    role="owner",
-                    is_active=True
-                )
-                db.add(default_owner)
+        # 1. Ensure Owner Account Exists
+        owner = db.query(models.User).filter(
+            (models.User.email == "abdulhadipanhwar71@gmail.com") | (models.User.username == "127294") | (models.User.role == "owner")
+        ).first()
+        if not owner:
+            logger.info("Initializing owner user account: AbdulHadi (username: 127294)...")
+            initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "admin123")
+            hashed = auth.get_password_hash(initial_password)
+            default_owner = models.User(
+                name="AbdulHadi",
+                email="abdulhadipanhwar71@gmail.com",
+                username="127294",
+                hashed_password=hashed,
+                role="owner",
+                is_active=True
+            )
+            db.add(default_owner)
 
-            cashier = db.query(models.User).filter(models.User.email == "cashier@dukaanos.pk").first()
-            if not cashier:
-                logger.info("Creating default cashier user account (cashier@dukaanos.pk)...")
-                hashed_cashier = auth.get_password_hash("cashier123")
-                default_cashier = models.User(
-                    name="Ahmed Ali (Cashier)",
-                    email="cashier@dukaanos.pk",
-                    username="cashier",
-                    hashed_password=hashed_cashier,
-                    role="cashier",
-                    is_active=True
-                )
-                db.add(default_cashier)
-        else:
-            logger.info("Production mode: Demo accounts are not auto-seeded. Provision accounts using 'python backend/manage_users.py create-owner'.")
-
-        # Check default store profile
+        # 2. Ensure Store Profile Exists
         profile = db.query(models.StoreProfile).first()
         if not profile:
-            logger.info("Creating default store profile...")
+            logger.info("Initializing store profile: Al-Madinah General Store...")
             default_prof = models.StoreProfile(
                 name="Al-Madinah General Store",
                 tagline="Quality Grocery & Household Essentials at Wholesome Prices",
@@ -101,6 +86,14 @@ async def lifespan(app: FastAPI):
                 receipt_footer="JazakAllah Khair for shopping with us! Please verify items before leaving."
             )
             db.add(default_prof)
+
+        # 3. Ensure Product Catalog Exists
+        if db.query(models.Product).count() == 0:
+            logger.info("Initializing product catalog from seed catalog...")
+            from backend.seed_data import sample_products
+            for p_data in sample_products:
+                prod = models.Product(**p_data)
+                db.add(prod)
 
         db.commit()
     except Exception as exc:

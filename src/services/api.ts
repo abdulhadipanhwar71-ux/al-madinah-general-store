@@ -4,10 +4,16 @@
  * error handling, and robust network management.
  */
 
-export const API_BASE_URL: string = 
+const rawApiUrl = 
   (import.meta.env.VITE_API_URL as string) || 
   (import.meta.env.VITE_API_BASE_URL as string) || 
   '';
+
+export const API_BASE_URL: string = rawApiUrl.trim()
+  ? (rawApiUrl.startsWith('http://') || rawApiUrl.startsWith('https://') 
+      ? rawApiUrl.replace(/\/+$/, '') 
+      : `https://${rawApiUrl}`.replace(/\/+$/, ''))
+  : '';
 
 
 export interface ApiError {
