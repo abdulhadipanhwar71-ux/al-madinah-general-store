@@ -25,6 +25,7 @@ import {
 } from '../data/mockData';
 import { WhatsAppMessageModal } from '../components/modals/WhatsAppMessageModal';
 import { Language, TranslationKey, getTranslation } from '../utils/translations';
+import { apiPublic, apiAdmin, getStoredToken, apiRequest } from '../services/api';
 
 interface StoreContextType {
   products: Product[];
@@ -287,6 +288,176 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('dukaanos_pub_cart', JSON.stringify(publicCart));
   }, [publicCart]);
 
+  // Synchronize data from real backend API on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncFromBackend = async () => {
+      try {
+        // 1. Fetch public store profile
+        const prof = await apiPublic.getStoreProfile();
+        if (isMounted && prof && prof.name) {
+          setStoreProfile(prev => ({
+            ...prev,
+            name: prof.name || prev.name,
+            tagline: prof.tagline || prev.tagline,
+            ownerName: prof.owner_name || prev.ownerName,
+            phone: prof.phone || prev.phone,
+            whatsappNumber: prof.whatsapp_number || prev.whatsappNumber,
+            email: prof.email || prev.email,
+            address: prof.address || prev.address,
+            city: prof.city || prev.city,
+            currency: prof.currency || prev.currency,
+            deliveryAvailable: prof.delivery_available ?? prev.deliveryAvailable,
+            deliveryCharges: prof.delivery_charges ?? prev.deliveryCharges,
+            freeDeliveryThreshold: prof.free_delivery_threshold ?? prev.freeDeliveryThreshold,
+            storeHours: prof.store_hours || prev.storeHours,
+            returnPolicy: prof.return_policy || prev.returnPolicy,
+          }));
+        }
+
+        // 2. Fetch public products
+        const publicProds = await apiPublic.getProducts();
+        if (isMounted && Array.isArray(publicProds) && publicProds.length > 0) {
+          setProducts(publicProds.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            urduName: p.urdu_name || '',
+            category: p.category,
+            sku: p.sku,
+            price: p.price,
+            costPrice: p.cost_price || 0,
+            stock: p.stock,
+            minStockLevel: p.min_stock_level || 10,
+            unit: p.unit || 'piece',
+            image: p.image || '',
+            barcode: p.barcode || '',
+            status: p.status || (p.stock > 0 ? 'in_stock' : 'out_of_stock'),
+            isPublic: p.is_public ?? true,
+            featured: p.featured ?? false,
+            allowBackorder: p.allow_backorder ?? false,
+            description: p.description || '',
+            expiryDate: p.expiry_date || '',
+          })));
+        }
+
+        // 3. If admin token exists, fetch full admin datasets
+        const token = getStoredToken();
+        if (token) {
+          try {
+            const [adminProds, adminCusts, adminTxs, adminExps, adminOrds] = await Promise.allSettled([
+              apiAdmin.getProducts(),
+              apiAdmin.getCustomers(),
+              apiAdmin.getTransactions(),
+              apiAdmin.getExpenses(),
+              apiAdmin.getOrders()
+            ]);
+
+            if (isMounted && adminProds.status === 'fulfilled' && Array.isArray(adminProds.value) && adminProds.value.length > 0) {
+              setProducts(adminProds.value.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                urduName: p.urdu_name || '',
+                category: p.category,
+                sku: p.sku,
+                price: p.price,
+                costPrice: p.cost_price || 0,
+                stock: p.stock,
+                minStockLevel: p.min_stock_level || 10,
+                unit: p.unit || 'piece',
+                image: p.image || '',
+                barcode: p.barcode || '',
+                status: p.status || (p.stock > 0 ? 'in_stock' : 'out_of_stock'),
+                isPublic: p.is_public ?? true,
+                featured: p.featured ?? false,
+                allowBackorder: p.allow_backorder ?? false,
+                description: p.description || '',
+                expiryDate: p.expiry_date || '',
+              })));
+            }
+
+            if (isMounted && adminCusts.status === 'fulfilled' && Array.isArray(adminCusts.value) && adminCusts.value.length > 0) {
+              setCustomers(adminCusts.value.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                phone: c.phone,
+                email: c.email || '',
+                address: c.address || '',
+                balance: c.balance || 0,
+                membershipTier: c.membership_tier || 'Regular',
+                totalSpent: c.total_spent || 0,
+                totalOrders: c.total_orders || 0,
+                lastPurchaseDate: c.last_purchase_date || '',
+                creditLimit: c.credit_limit || 20000,
+              })));
+            }
+
+            if (isMounted && adminTxs.status === 'fulfilled' && Array.isArray(adminTxs.value) && adminTxs.value.length > 0) {
+              setTransactions(adminTxs.value.map((t: any) => ({
+                id: t.id,
+                invoiceNumber: t.invoice_number,
+                date: t.date,
+                time: t.time || '',
+                customerName: t.customer_name || 'Walk-in Customer',
+                customerId: t.customer_id || 'walk-in',
+                items: t.items || [],
+                subtotal: t.subtotal,
+                discount: t.discount || 0,
+                tax: t.tax || 0,
+                total: t.total,
+                paymentMethod: t.payment_method,
+                paymentStatus: t.payment_status || 'Paid',
+                cashier: t.cashier || 'Admin',
+              })));
+            }
+
+            if (isMounted && adminExps.status === 'fulfilled' && Array.isArray(adminExps.value) && adminExps.value.length > 0) {
+              setExpenses(adminExps.value.map((e: any) => ({
+                id: e.id,
+                date: e.date,
+                category: e.category,
+                description: e.description,
+                amount: e.amount,
+                paymentMethod: e.payment_method,
+                recordedBy: e.recorded_by || 'Admin',
+              })));
+            }
+
+            if (isMounted && adminOrds.status === 'fulfilled' && Array.isArray(adminOrds.value) && adminOrds.value.length > 0) {
+              setOrders(adminOrds.value.map((o: any) => ({
+                id: o.id,
+                orderNumber: o.order_number,
+                customerName: o.customer_name,
+                customerPhone: o.customer_phone,
+                deliveryAddress: o.delivery_address || '',
+                items: o.items || [],
+                subtotal: o.subtotal,
+                deliveryCharges: o.delivery_charges || 0,
+                total: o.total,
+                paymentMethod: o.payment_method,
+                paymentStatus: o.payment_status || 'Pending',
+                status: o.status || 'New',
+                channel: o.channel || 'Web',
+                orderNotes: o.order_notes || '',
+                createdAt: o.created_at || '',
+                statusHistory: o.status_history || [],
+              })));
+            }
+          } catch (adminErr) {
+            console.log('Admin data sync skipped or unauthorized:', adminErr);
+          }
+        }
+      } catch (err) {
+        console.log('Public data sync fallback to local storage:', err);
+      }
+    };
+
+    syncFromBackend();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
@@ -330,6 +501,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setStockMovements(prev => [movement, ...prev]);
     }
 
+    if (getStoredToken()) {
+      apiAdmin.createProduct({
+        name: newProdData.name,
+        urdu_name: newProdData.urduName || undefined,
+        category: newProdData.category,
+        sku: newProdData.sku,
+        price: newProdData.price,
+        cost_price: newProdData.costPrice || 0,
+        stock: newProdData.stock,
+        min_stock_level: minLevel,
+        unit: newProdData.unit || 'piece',
+        image: newProduct.image,
+        is_public: newProduct.isPublic,
+        featured: newProdData.featured || false,
+        allow_backorder: newProdData.allowBackorder || false,
+        description: newProdData.description || '',
+        expiry_date: newProdData.expiryDate || null,
+      }).catch(err => console.error('Failed to sync new product to backend:', err));
+    }
+
     return { success: true };
   };
 
@@ -347,11 +538,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { ...merged, status };
     }));
 
+    if (getStoredToken()) {
+      apiAdmin.updateProduct(id, {
+        name: updates.name,
+        urdu_name: updates.urduName,
+        category: updates.category,
+        sku: updates.sku,
+        price: updates.price,
+        cost_price: updates.costPrice,
+        stock: updates.stock,
+        min_stock_level: updates.minStockLevel,
+        unit: updates.unit,
+        image: updates.image,
+        is_public: updates.isPublic,
+        featured: updates.featured,
+        allow_backorder: updates.allowBackorder,
+        description: updates.description,
+        expiry_date: updates.expiryDate,
+      }).catch(err => console.error('Failed to sync updated product to backend:', err));
+    }
+
     return { success: true };
   };
 
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+    if (getStoredToken()) {
+      apiAdmin.deleteProduct(id).catch(err => console.error('Failed to sync delete product to backend:', err));
+    }
   };
 
   const toggleProductPublic = (id: string) => {
@@ -394,6 +608,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         status,
       };
     }));
+
+    if (getStoredToken()) {
+      apiAdmin.adjustStock(productId, quantityChange, reason || (quantityChange > 0 ? 'Stock delivery restocked' : 'Stock level adjusted'), type)
+        .catch(err => console.error('Failed to sync stock adjustment to backend:', err));
+    }
   };
 
   const addTransaction = (newTxData: Omit<Transaction, 'id' | 'invoiceNumber'>): Transaction => {
@@ -428,6 +647,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setTransactions(prev => [newTx, ...prev]);
 
+    if (getStoredToken()) {
+      apiAdmin.createTransaction({
+        customer_id: newTx.customerId && newTx.customerId !== 'walk-in' ? newTx.customerId : null,
+        customer_name: newTx.customerName || 'Walk-in Customer',
+        customer_phone: newTx.customerPhone || null,
+        items: newTx.items.map(item => ({
+          product_id: item.productId,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+        })),
+        discount: newTx.discount || 0,
+        tax: newTx.tax || 0,
+        payment_method: newTx.paymentMethod || 'Cash',
+      }).catch(err => console.error('Failed to sync transaction to backend:', err));
+    }
+
     return newTx;
   };
 
@@ -441,6 +676,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       membershipTier: custData.balance > 5000 ? 'Regular' : 'Silver',
     };
     setCustomers(prev => [newCustomer, ...prev]);
+    if (getStoredToken()) {
+      apiAdmin.createCustomer({
+        name: custData.name,
+        phone: custData.phone,
+        email: custData.email,
+        address: custData.address,
+        balance: custData.balance || 0,
+        membership_tier: newCustomer.membershipTier,
+      }).catch(err => console.error('Failed to sync customer to backend:', err));
+    }
   };
 
   // Record Repayment or Auditable Adjustment (Does NOT create sales revenue!)
@@ -477,6 +722,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         balance: newBal,
       };
     }));
+
+    if (getStoredToken()) {
+      apiAdmin.recordRepayment(customerId, amount, paymentMethod, note)
+        .catch(err => console.error('Failed to sync repayment to backend:', err));
+    }
   };
 
   const updateCustomerReminder = (customerId: string) => {
@@ -545,6 +795,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         statusHistory: [historyItem, ...o.statusHistory]
       };
     }));
+
+    if (getStoredToken()) {
+      apiAdmin.updateOrderStatus(orderId, newStatus, note)
+        .catch(err => console.error('Failed to sync order status to backend:', err));
+    }
   };
 
   const updateOrderPaymentStatus = (orderId: string, paymentStatus: 'Pending' | 'Paid') => {
@@ -561,10 +816,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `exp-${Date.now()}`,
     };
     setExpenses(prev => [newExpense, ...prev]);
+
+    if (getStoredToken()) {
+      apiAdmin.createExpense({
+        date: expenseData.date,
+        category: expenseData.category,
+        description: expenseData.description,
+        amount: expenseData.amount,
+        payment_method: expenseData.paymentMethod,
+      }).catch(err => console.error('Failed to sync expense to backend:', err));
+    }
   };
 
   const deleteExpense = (id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
+    if (getStoredToken()) {
+      apiRequest(`/api/admin/expenses/${id}`, { method: 'DELETE' })
+        .catch(err => console.error('Failed to sync delete expense to backend:', err));
+    }
   };
 
   const markNotificationRead = (id: string) => {
@@ -577,6 +846,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateStoreProfile = (profileUpdate: Partial<StoreProfile>) => {
     setStoreProfile(prev => ({ ...prev, ...profileUpdate }));
+
+    if (getStoredToken()) {
+      apiAdmin.updateStoreProfile({
+        name: profileUpdate.name,
+        tagline: profileUpdate.tagline,
+        owner_name: profileUpdate.ownerName,
+        phone: profileUpdate.phone,
+        whatsapp_number: profileUpdate.whatsappNumber,
+        email: profileUpdate.email,
+        address: profileUpdate.address,
+        city: profileUpdate.city,
+        store_hours: profileUpdate.storeHours,
+        delivery_available: profileUpdate.deliveryAvailable,
+        delivery_charges: profileUpdate.deliveryCharges,
+        free_delivery_threshold: profileUpdate.freeDeliveryThreshold,
+        delivery_areas: profileUpdate.deliveryAreas,
+        return_policy: profileUpdate.returnPolicy,
+      }).catch(err => console.error('Failed to sync store profile to backend:', err));
+    }
   };
 
   // Public Cart actions

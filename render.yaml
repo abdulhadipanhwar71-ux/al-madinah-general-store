@@ -46,3 +46,8 @@ services:
           type: web
           name: al-madinah-backend
           property: host
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: al-madinah-backend
+          property: host
